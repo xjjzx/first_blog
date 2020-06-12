@@ -75,8 +75,12 @@ WSGI_APPLICATION = 'blog.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': '49.233.155.21',
+        'PORT': 3306,
+        'USER': 'jizhixin',
+        'PASSWORD': 'jizhixin',
+        'NAME': 'itcast_blog',
     }
 }
 
