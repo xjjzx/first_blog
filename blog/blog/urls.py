@@ -29,6 +29,5 @@ import logging
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('users/', include(('users.urls', 'users'), namespace='users'))
-    # path('', log)
+    path('', include(('users.urls', 'users'), namespace='users'))
 ]
