@@ -1,5 +1,7 @@
 import re
 from random import randint
+from django.contrib.auth import login, logout
+from django.contrib.auth import authenticate
 from django.http import HttpResponseBadRequest, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 import logging
@@ -64,7 +66,6 @@ class RegisterView(View):
             user = User.objects.create_user(username=mobile, mobile=mobile, password=password)
         except DatabaseError:
             return HttpResponseBadRequest('注册失败')
-        from django.contrib.auth import login
         login(request, user)
 
         # 响应注册结果
@@ -135,3 +136,73 @@ class SmsCodeView(View):
 
         # 响应结果
         return JsonResponse({'code': RETCODE.OK, 'errmsg': '发送短信成功'})
+
+
+class LoginView(View):
+    """用户登录"""
+
+    def get(self, request):
+
+        return render(request, 'login.html')
+
+    def post(self, request):
+        # 获取参数
+        password = request.POST.get('password')
+        mobile = request.POST.get('mobile')
+        remember = request.POST.get('remember')
+
+        # 校验参数
+        # 判断参数是否齐全
+        if not all([mobile, password]):
+            return HttpResponseBadRequest('缺少必传参数')
+
+        # 判断手机号是否正确
+        if not re.search(r'^1[3-9]\d{9}$', mobile):
+            return HttpResponseBadRequest('请输入正确格式的手机号')
+
+        # 判断密码是否为8-20
+        if not re.search(r'^[0-9A-Za-z]{8,20}$', password):
+            return HttpResponseBadRequest('密码最少为8位，最长20位')
+
+        # 认证登录用户
+        # 认证字段已经在User模型中的USERNAME_FIELD = 'mobile' 修改
+        user = authenticate(mobile=mobile, password=password)
+
+        if user is None:
+            return HttpResponseBadRequest('用户名或密码错误')
+
+        # 实现状态保持
+        login(request, user)
+
+        # 响应登录结果
+        response = redirect(reverse('home:index'))
+
+        # 设置状态保持的周期
+        if remember != 'on':
+            # 没有记住用户: 浏览器会话结束就过期
+            request.session.set_expiry(0)
+            # 设置coookie
+            response.set_cookie('is_login', True)
+            response.set_cookie('username', user.username, max_age=30*24*3600)
+        else:
+            # 记住用户: None表示两周后过期
+            request.session.set_expiry(None)
+            # 设置cookei
+            response.set_cookie('is_login', True, max_age=14*24*3600)
+            response.set_cookie('username', user.username, max_age=30*24*3600)
+
+        # 返回响应
+        return response
+
+
+class LogoutView(View):
+    """登出"""
+
+    def get(self, request):
+        # 清理session
+        logout(request)
+        # 退出登录，重定向到登录页
+        response = redirect(reverse('home:index'))
+        # 退出登录时清除cookie中的登录状态
+        response.delete_cookie('is_login')
+        return response
