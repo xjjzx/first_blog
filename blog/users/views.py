@@ -206,3 +206,54 @@ class LogoutView(View):
         # 退出登录时清除cookie中的登录状态
         response.delete_cookie('is_login')
         return response
+
+
+class ForgetPasswordView(View):
+    """忘记密码"""
+
+    def get(self, request):
+
+        return render(request, 'forget_password.html')
+
+    def post(self, request):
+        mobile = request.POST.get('mobile')
+        password = request.POST.get('password')
+        password2 = request.POST.get('password2')
+        sms_code = request.POST.get('sms_code')
+
+        if not all([mobile,password,password2,sms_code]):
+            return HttpResponseBadRequest('缺少必传参数')
+        # 判断手机号是否合法
+        if not re.match(r'^1[3-9]\d{9}$', mobile):
+            return HttpResponseBadRequest('请输入正确的手机号码')
+
+        # 判断密码是否是8-20个数字
+        if not re.match(r'^[0-9A-Za-z]{8,20}$', password):
+            return HttpResponseBadRequest('请输入8-20位的密码')
+
+        if password != password2:
+            return HttpResponseBadRequest('两次密码不一样')
+
+        redis_conn = get_redis_connection('default')
+        sms_code_server = redis_conn.get(f'sms:{mobile}')
+        if sms_code_server is None:
+            return HttpResponseBadRequest('短信验证码已过期')
+        sms_code_server = sms_code_server.decode('utf-8')
+
+        if sms_code_server.lower() != sms_code.lower():
+            return HttpResponseBadRequest('验证码错误')
+        try:
+            user = User.objects.get(mobile=mobile)
+        except User.DoesNotExist:
+            try:
+                User.objects.create_user(username=mobile, mobile=mobile, password=password)
+            except Exception:
+                return HttpResponseBadRequest('修改失败，请稍后重试')
+        else:
+            user.set_password(password)
+            user.save()
+
+        response = redirect(reverse('users:login'))
+
+        return response
+
