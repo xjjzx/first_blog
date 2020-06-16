@@ -1,6 +1,5 @@
 import re
 from random import randint
-
 from django.http import HttpResponseBadRequest, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 import logging
@@ -65,9 +64,18 @@ class RegisterView(View):
             user = User.objects.create_user(username=mobile, mobile=mobile, password=password)
         except DatabaseError:
             return HttpResponseBadRequest('注册失败')
+        from django.contrib.auth import login
+        login(request, user)
 
         # 响应注册结果
-        return redirect(reverse('home:index'))
+        response =  redirect(reverse('home:index'))
+        # 设置cookie
+        # 登录状态，会话结束后自动过期
+        response.set_cookie('is_login', True)
+        # 设置用户名有效期一个月
+        response.set_cookie('username', user.username, max_age=30*24*3600)
+
+        return response
 
 
 class ImageCodeView(View):
