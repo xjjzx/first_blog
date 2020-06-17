@@ -2,6 +2,7 @@ import re
 from random import randint
 from django.contrib.auth import login, logout
 from django.contrib.auth import authenticate
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponseBadRequest, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 import logging
@@ -150,6 +151,7 @@ class LoginView(View):
         password = request.POST.get('password')
         mobile = request.POST.get('mobile')
         remember = request.POST.get('remember')
+        next = request.GET.get('next')
 
         # 校验参数
         # 判断参数是否齐全
@@ -175,7 +177,10 @@ class LoginView(View):
         login(request, user)
 
         # 响应登录结果
-        response = redirect(reverse('home:index'))
+        if next:
+            response = redirect(next)
+        else:
+            response = redirect(reverse('home:index'))
 
         # 设置状态保持的周期
         if remember != 'on':
@@ -257,3 +262,47 @@ class ForgetPasswordView(View):
 
         return response
 
+
+class UserCenterView(LoginRequiredMixin,View):
+    """用户中心"""
+
+    def get(self, request):
+        # 获取用户信息
+        user = request.user
+        # 组织模板渲染数据
+        context = {
+            'username': user.username,
+            'mobile': user.mobile,
+            'avatar': user.avatar.url if user.avatar else None,
+            'user_desc': user.user_desc
+        }
+        return render(request, 'center.html', context=context)
+
+    def post(self, request):
+        user = request.user
+        username = request.POST.get('username', user.username)
+        avatar = request.FILES.get('avatar')
+        user_desc = request.POST.get('desc', user.user_desc)
+
+        try:
+            user.username = username
+            user.user_desc = user_desc
+            if avatar:
+                user.avatar = avatar
+            user.save()
+        except Exception as e:
+            logger.info(e)
+            return HttpResponseBadRequest('更新失败，请稍后重试')
+
+        response = redirect(reverse('users:center'))
+
+        response.set_cookie('username', user.username, max_age=30*24*3600)
+
+        return response
+
+
+class WriteBlogView(View):
+    """写博客"""
+
+    def get(self, request):
+        return render(request, 'write_blog.html')
