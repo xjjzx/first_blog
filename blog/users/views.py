@@ -13,6 +13,7 @@ from django.views import View
 from django_redis import get_redis_connection
 from pymysql import DatabaseError
 
+from home.models import ArticleCategory, Article
 from libs.captcha.captcha import captcha
 from libs.yuntongxun.sms import CCP
 from users.models import User
@@ -305,4 +306,42 @@ class WriteBlogView(View):
     """写博客"""
 
     def get(self, request):
-        return render(request, 'write_blog.html')
+        categories = ArticleCategory.objects.all()
+        context = {
+            'categories': categories
+        }
+        return render(request, 'write_blog.html', context=context)
+
+    def post(self, request):
+        title = request.POST.get('title')
+        avatar = request.FILES.get('avatar')
+        category_id = request.POST.get('category')
+        tags = request.POST.get('tags')
+        sumary = request.POST.get('sumary')
+        content = request.POST.get('content')
+        user = request.user
+        if not all([title,avatar,category_id,tags,sumary,content]):
+            return HttpResponseBadRequest('缺少必传参数')
+
+        try:
+            article_category = ArticleCategory.objects.get(id=category_id)
+        except ArticleCategory.DoesNotExist:
+            return HttpResponseBadRequest('没有此分类信息')
+
+        try:
+            article = Article.objects.create(
+                author=user,
+                avatar=avatar,
+                category=article_category,
+                tags=tags,
+                title=title,
+                sumary=sumary,
+                content=content
+            )
+        except Exception as e:
+            logger.error(e)
+            return HttpResponseBadRequest('发布失败，请稍后重试')
+
+        return redirect(reverse('home:index'))
+
+
